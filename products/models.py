@@ -7,6 +7,6 @@ class Product(models.Model):
     quantity = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    product_image = models.ImageField(upload_to='product_images/', blank=True, null=True)
     def __str__(self):
         return self.name
