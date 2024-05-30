@@ -8,7 +8,6 @@ class CustomUser(AbstractUser):
     class Meta:
         swappable = 'AUTH_USER_MODEL'
 
-# Define the intermediate models for groups and permissions
 class UserGroup(models.Model):
     customuser = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     group = models.ForeignKey(Group, on_delete=models.CASCADE)
