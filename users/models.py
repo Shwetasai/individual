@@ -6,9 +6,15 @@ class CustomUser(AbstractUser):
         ('retailer', 'Retailer'),
         ('customer', 'Customer'),
     )
-    
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
 
+    email = models.EmailField(unique=True)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
+    is_retailer = models.BooleanField(default=False, null=True)
+    is_customer = models.BooleanField(default=False, null=True)
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+    
     class Meta:
         swappable = 'AUTH_USER_MODEL'
     
