@@ -6,12 +6,10 @@ from django.core.mail import send_mail
 from django.conf import settings
 
 class CustomUserSerializer(serializers.ModelSerializer):
-    is_retailer = serializers.SerializerMethodField()
-    is_customer = serializers.SerializerMethodField()
-
+ 
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'password', 'is_retailer', 'is_customer']
+        fields = ['id', 'username', 'email', 'password', 'role', 'is_retailer' , 'is_customer']
         extra_kwargs = {'password': {'write_only': True}}
 
     def get_is_retailer(self, obj):
@@ -25,7 +23,13 @@ class CustomUserSerializer(serializers.ModelSerializer):
         return obj.role == 'customer'
 
     def create(self, validated_data):
-        user = CustomUser.objects.create_user(**validated_data)
+        role = validated_data.get('role', 'customer')
+        validated_data['is_retailer'] = (role == 'retailer')
+        validated_data['is_customer'] = (role == 'customer')
+        password = validated_data.pop('password')
+        user = CustomUser(**validated_data)
+        user.set_password(password)
+        user.save()
         send_mail(
             'Welcome to Our Platform',
             'Thank you for registering!',
@@ -73,4 +77,5 @@ class UserLoginSerializer(serializers.Serializer):
             'access_token': str(refresh.access_token),
             'id': user.id,
             'email': user.email,
+            "role":user.role
         }

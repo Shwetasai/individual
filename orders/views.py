@@ -6,6 +6,35 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from .models import Order
 from .serializers import OrderSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+class OrderCreateView(APIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request):
+        serializer = OrderSerializer(data=request.data)
+        if serializer.is_valid():
+            # Calculate the total price (example: product price * quantity)
+            product = serializer.validated_data['product']
+            quantity = serializer.validated_data['quantity']
+            total_price = product.price * quantity  # Assuming 'price' field in Product model
+
+            order = serializer.save(user=request.user, total_price=total_price)
+            
+            # Send email confirmation
+            user_email = request.user.email
+            order_details = f"Order ID: {order.id}\nProduct: {order.product.name}\nQuantity: {order.quantity}\nTotal Price: {order.total_price}\nStatus: {order.status}"
+            send_mail(
+                subject='Order Confirmation',
+                message=f'Thank you for your order!\n\n{order_details}',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user_email],
+                fail_silently=False,
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class OrderListView(APIView):
     def get(self, request):
@@ -31,29 +60,24 @@ class OrderListView(APIView):
 
 
 class OrderDetailView(APIView):
-    def get(self, request, pk):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk):
         try:
-            order = Order.objects.get(pk=pk)
+            return Order.objects.get(pk=pk, user=self.request.user)
         except Order.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        order = self.get_object(pk)
+        if order is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = OrderSerializer(order)
         return Response(serializer.data)
 
-    def put(self, request, pk):
-        try:
-            order = Order.objects.get(pk=pk)
-        except Order.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = OrderSerializer(order, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
     def delete(self, request, pk):
-        try:
-            order = Order.objects.get(pk=pk)
-        except Order.DoesNotExist:
+        order = self.get_object(pk)
+        if order is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         order.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"message": "Order deleted successfully"}, status=status.HTTP_200_OK)

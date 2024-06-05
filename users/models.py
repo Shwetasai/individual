@@ -9,9 +9,8 @@ class CustomUser(AbstractUser):
 
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
-    is_retailer = models.BooleanField(default=False, null=True)
-    is_customer = models.BooleanField(default=False, null=True)
-
+    is_retailer = models.BooleanField(default=False)
+    is_customer = models.BooleanField(default=False)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
     
