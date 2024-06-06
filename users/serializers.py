@@ -4,7 +4,8 @@ from .models import CustomUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.conf import settings
-
+import base64
+import json
 class CustomUserSerializer(serializers.ModelSerializer):
  
     class Meta:
@@ -30,9 +31,18 @@ class CustomUserSerializer(serializers.ModelSerializer):
         user = CustomUser(**validated_data)
         user.set_password(password)
         user.save()
+
+        user_data = {
+            'email': user.email,
+            'role': user.role,
+        }
+        encoded_user_data = base64.urlsafe_b64encode(json.dumps(user_data).encode()).decode()
+        request = self.context.get('request')
+        verification_link = f"{request.scheme}://{request.get_host()}/users/verify/?data={encoded_user_data}"
+
         send_mail(
             'Welcome to Our Platform',
-            'Thank you for registering!',
+            f'Thank you for registering! Please verify your email: {verification_link}',
             settings.DEFAULT_FROM_EMAIL,
             [user.email],
             fail_silently=False,
@@ -71,6 +81,9 @@ class UserLoginSerializer(serializers.Serializer):
         user = authenticate(email=email, password=password)
         if user is None:
             raise serializers.ValidationError('Invalid credentials')
+
+        if not user.is_verified():
+            raise serializers.ValidationError('Email is not verified')
 
         refresh = RefreshToken.for_user(user)
         return {

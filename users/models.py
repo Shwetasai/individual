@@ -8,6 +8,10 @@ class CustomUser(AbstractUser):
     )
 
     email = models.EmailField(unique=True)
+    is_email_verified = models.BooleanField(default=False)
+
+    def is_verified(self):
+        return self.is_email_verified
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
     is_retailer = models.BooleanField(default=False)
     is_customer = models.BooleanField(default=False)
