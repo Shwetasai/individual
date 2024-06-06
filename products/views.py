@@ -20,7 +20,7 @@ class IsCustomerOrReadOnly(BasePermission):
             return True  # Allow any user to perform safe methods like GET
         return request.user.is_authenticated and request.user.role == 'customer'
 class ProductListView(APIView):
-    permission_classes = [IsAuthenticated,IsRetailer]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         products = Product.objects.all()
@@ -38,7 +38,7 @@ class ProductListView(APIView):
 
 
 class ProductDetailView(APIView):
-    permission_classes = [IsAuthenticated,IsRetailer]
+    permission_classes = [IsAuthenticated]
 
     def get_object(self, pk):
         try:

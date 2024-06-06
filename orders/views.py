@@ -7,10 +7,10 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Order
 from .serializers import OrderSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
+from .permissions import IsCustomer
 class OrderCreateView(APIView):
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCustomer]
     authentication_classes = [JWTAuthentication]
 
     def post(self, request):
@@ -37,17 +37,23 @@ class OrderCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class OrderListView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
-        orders = Order.objects.all()
+        orders = Order.objects.filter(user=request.user)
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data)
 
     def post(self, request):
         serializer = OrderSerializer(data=request.data)
         if serializer.is_valid():
-            order = serializer.save()
+            product = serializer.validated_data['product']
+            quantity = serializer.validated_data['quantity']
+            total_price = product.price * quantity
+            
+            order = serializer.save(user=request.user, total_price=total_price)
             user_email = request.user.email
-            order_details = f"Order ID: {order.id}\nProduct: {order.product.name}\nQuantity: {order.quantity}"
+            order_details = f"Order ID: {order.id}\nProduct: {order.product.name}\nQuantity: {order.quantity}\nTotal Price: {order.total_price}\nStatus: {order.status}"
             send_mail(
                 subject='Order Confirmation',
                 message=f'Thank you for your order!\n\n{order_details}',
@@ -75,9 +81,19 @@ class OrderDetailView(APIView):
         serializer = OrderSerializer(order)
         return Response(serializer.data)
 
+    def put(self, request, pk):
+        order = self.get_object(pk)
+        if order is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = OrderSerializer(order, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def delete(self, request, pk):
         order = self.get_object(pk)
         if order is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         order.delete()
-        return Response({"message": "Order deleted successfully"}, status=status.HTTP_200_OK)
+        return Response({"message": "Order deleted successfully."}, status=status.HTTP_200_OK)
