@@ -6,8 +6,11 @@ from django.core.mail import send_mail
 from django.conf import settings
 import base64
 import json
+from django.utils.translation import gettext as _
+
 class CustomUserSerializer(serializers.ModelSerializer):
- 
+    is_retailer = serializers.SerializerMethodField()
+    is_customer = serializers.SerializerMethodField()
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'password', 'role', 'is_retailer' , 'is_customer']
@@ -27,6 +30,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
         role = validated_data.get('role', 'customer')
         validated_data['is_retailer'] = (role == 'retailer')
         validated_data['is_customer'] = (role == 'customer')
+        validated_data['is_email_verified'] = False
         password = validated_data.pop('password')
         user = CustomUser(**validated_data)
         user.set_password(password)
@@ -34,12 +38,13 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
         user_data = {
             'email': user.email,
+            'username': user.username,
+            'password': password,
             'role': user.role,
         }
         encoded_user_data = base64.urlsafe_b64encode(json.dumps(user_data).encode()).decode()
         request = self.context.get('request')
         verification_link = f"{request.scheme}://{request.get_host()}/users/verify/?data={encoded_user_data}"
-
         send_mail(
             'Welcome to Our Platform',
             f'Thank you for registering! Please verify your email: {verification_link}',
@@ -58,9 +63,10 @@ class TokenObtainPairSerializer(serializers.Serializer):
         email = attrs.get('email')
         password = attrs.get('password')
 
-        user = authenticate(email=email, password=password)
+        user = authenticate(request=self.context.get('request'), email=email, password=password)
         if user is None:
-            raise serializers.ValidationError('Invalid credentials')
+            raise serializers.ValidationError(_('Invalid credentials'), code='authorization')
+
 
         refresh = RefreshToken.for_user(user)
         return {
@@ -78,12 +84,12 @@ class UserLoginSerializer(serializers.Serializer):
         email = attrs.get('email')
         password = attrs.get('password')
 
-        user = authenticate(email=email, password=password)
+        user = authenticate(request=self.context.get('request'), email=email, password=password)
         if user is None:
-            raise serializers.ValidationError('Invalid credentials')
+            raise serializers.ValidationError(_('Invalid credentials'), code='authorization')
 
-        if not user.is_verified():
-            raise serializers.ValidationError('Email is not verified')
+        if not user.is_email_verified:
+            raise serializers.ValidationError(_('Email is not verified'), code='authorization')
 
         refresh = RefreshToken.for_user(user)
         return {

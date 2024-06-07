@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny
 from .models import Product
 from .serializers import ProductSerializer
 from .permissions import IsRetailer, IsCustomerOrReadOnly,IsRetailerOrReadOnly
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,16 @@ class IsRetailer(BasePermission):
 
 class IsCustomerOrReadOnly(BasePermission):
     def has_permission(self, request, view):
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
-            return True  # Allow any user to perform safe methods like GET
+        if request.method in SAFE_METHODS:
+            return True  
         return request.user.is_authenticated and request.user.role == 'customer'
+
+class IsRetailerOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True  
+        return request.user.is_authenticated and request.user.role == 'retailer'
+
 class ProductListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -38,7 +45,7 @@ class ProductListView(APIView):
 
 
 class ProductDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated,IsRetailerOrReadOnly]
 
     def get_object(self, pk):
         try:
@@ -54,8 +61,6 @@ class ProductDetailView(APIView):
         return Response(serializer.data)
 
     def put(self, request, pk):
-        if not request.user.is_retailer:
-            return Response({"error": "Retailer permission required"}, status=status.HTTP_403_FORBIDDEN)
         product = self.get_object(pk)
         if product is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -66,8 +71,6 @@ class ProductDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        if not request.user.is_retailer:
-            return Response({"error": "Retailer permission required"}, status=status.HTTP_403_FORBIDDEN)
         product = self.get_object(pk)
         if product is None:
             return Response(status=status.HTTP_404_NOT_FOUND)

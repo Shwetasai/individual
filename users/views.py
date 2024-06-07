@@ -17,28 +17,29 @@ class CustomUserCreateView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):
-        serializer = CustomUserSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        
-        custom_user_data = serializer.validated_data
-        user = serializer.save()
+        email = request.data.get('email')
+        username = request.data.get('username')
+        password = request.data.get('password')
+        role = request.data.get('role', 'customer')
 
-        user_data_for_encoding = {
-            'email': custom_user_data['email'],
-            'role': custom_user_data.get('role', 'customer'),
+        # Encode user data
+        user_data = {
+            'email': email,
+            'username': username,
+            'password': password,
+            'role': role
         }
-        encoded_user_data = base64.urlsafe_b64encode(json.dumps(user_data_for_encoding).encode()).decode()
-        
-
+        encoded_user_data = base64.urlsafe_b64encode(json.dumps(user_data).encode()).decode()
+        print("Encoded User Data:", encoded_user_data)
+        # Send verification email
         verification_link = f"{request.scheme}://{request.get_host()}/users/verify/?data={encoded_user_data}"
         send_mail(
             subject='Verify your email',
             message=f"Click the link to verify your email and complete registration: {verification_link}",
             from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[custom_user_data['email']],
+            recipient_list=[email],
             fail_silently=False,
         )
-        role = custom_user_data.get('role', 'customer')
 
         return Response({
             "message": "Verification email sent. Please check your email to complete registration.",
@@ -53,19 +54,22 @@ class VerifyEmailView(APIView):
         if not encoded_user_data:
             return Response({"error": "Invalid verification link."}, status=status.HTTP_400_BAD_REQUEST)
 
-        decoded_custom_user_data = json.loads(base64.urlsafe_b64decode(encoded_user_data).decode())
-        email = decoded_custom_user_data["email"]
-        print(email)
-        usermodel = CustomUser.objects.get(email=email)
-        usermodel.is_email_verified = True
-        usermodel.save()
+        # Decode user data
+        decoded_user_data = json.loads(base64.urlsafe_b64decode(encoded_user_data).decode())
+        email = decoded_user_data["email"]
+        username = decoded_user_data["username"]
+        password = decoded_user_data["password"]
+        role = decoded_user_data["role"]
 
-        print(decoded_custom_user_data)
-        # serializer = CustomUserSerializer(data=decoded_custom_user_data)
-        # serializer.is_valid(raise_exception=True)
-        # user = serializer.save()
+        # Save user data to database
+        user = CustomUser.objects.filter(email=email).first()
+        if not user:
+            user = CustomUser.objects.create_user(email=email, username=username, password=password, role=role)
+        user.is_email_verified = True
+        user.save()
+
+
         return Response({"message": "Registration successful."}, status=status.HTTP_201_CREATED)
-
 
 class TokenObtainPairView(APIView):
     permission_classes = (AllowAny,)
